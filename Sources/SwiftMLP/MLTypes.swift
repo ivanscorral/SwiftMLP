@@ -10,17 +10,47 @@ import Foundation
 
 // Matrix
 
-public typealias MLMatrix<T> = [[T]] where T: FloatingPoint
+public struct MLMatrix<T> where T: FloatingPoint {
+    var grid: [[T]]
+    let rows: Int
+    let columns: Int
+    
+    public init(rows: Int, columns: Int) {
+        self.rows = rows
+        self.columns = columns
+        
+        self.grid = (0..<rows).map { _ in
+            [T](repeating: 0, count: columns)
+        }
+    }
+    
+    public init(rows: Int, columns: Int, fill: (Int, Int) -> T) {
+        self.rows = rows
+        self.columns = columns
+        
+        self.grid = (0..<rows).map { row in
+            (0..<columns).map { column in
+                fill(row, column)
+            }
+        }
+    }
+}
+
+
 
 // Generic Vector
 
-public typealias MLVector<T> = [T] where T: FloatingPoint
-
-
-func matrixVectorMultiply<T>(_ matrix: MLMatrix<T>, _ vector: MLVector<T>) -> MLVector<T> where T: FloatingPoint {
-    precondition(matrix[0].count == vector.count, "Matrix and vector must match dimensions")
-    precondition(matrix.count > 0, "Matrix must have at least one row")
-    return matrix.map { row in
-        zip(row, vector).reduce(0, { sum, pair in sum + pair.0 * pair.1 })
+public struct MLVector<T> where T: FloatingPoint {
+    var grid: [T]
+    let size: Int
+    
+    public init(repeating: T, count: Int) {
+        self.size = count
+        self.grid = [T](repeating: repeating, count: count)
+    }
+    
+    public init(_ array: [T]) {
+        self.grid = array
+        self.size = array.count
     }
 }
