@@ -8,11 +8,11 @@
 import Foundation
     
 
-enum ActivationFunction {
+public enum ActivationFunction {
     case sigmoid
     case relu
     
-    func apply(_ x: Float) -> Float {
+    public func apply(_ x: Float) -> Float {
         switch self {
         case .sigmoid:
             return 1.0 / (1.0 + exp(-x))
@@ -21,7 +21,7 @@ enum ActivationFunction {
         }
     }
     
-    func derivative(_ x: Float) -> Float {
+    public func derivative(_ x: Float) -> Float {
         switch self {
         case .sigmoid:
             return x * (1.0 - x)

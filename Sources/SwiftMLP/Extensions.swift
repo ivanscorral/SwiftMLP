@@ -41,7 +41,10 @@ extension MLVector where T == Float {
     }
     
     static func *(lhs: MLVector, rhs: MLMatrix<T>) -> MLVector {
-        return rhs.transpose() * lhs
+        precondition(lhs.size == rhs.rows, "Vector size must match matrix rows.")
+        return MLVector(grid: rhs.grid.map { row in
+            zip(lhs.grid, row).map(*).reduce(0, +)
+        }, size: rhs.columns)
     }
     
     func outerProduct(_ other: MLVector) -> MLMatrix<T> {
