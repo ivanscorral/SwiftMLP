@@ -9,78 +9,89 @@ import Foundation
 
 
 class MultiLayerPerceptron {
-    var inputSize: Int
-    var hiddenSize: Int
-    var outputSize: Int
+    var layers: [Int]
     var learningRate: Float
+    var activationFunctions: [ActivationFunction]
+    var lossFunction: LossFunction
     
-    var activationFunction: ActivationFunction
+    var weights: [MLMatrix<Float>]
+    var biases: [MLVector<Float>]
     
-    var weightsInputHidden: MLMatrix<Float>
-    var weightsHiddenOutput: MLMatrix<Float>
-    
-    init(inputSize: Int, hiddenSize: Int, outputSize: Int, learningRate: Float, activationFunction: ActivationFunction, weightsInputHidden: MLMatrix<Float>, weightsHiddenOutput: MLMatrix<Float>) {
-        self.inputSize = inputSize
-        self.hiddenSize = hiddenSize
-        self.outputSize = outputSize
+    init(layers: [Int], learningRate: Float, activationFunctions: [ActivationFunction], lossFunction: LossFunction) {
+        self.layers = layers
         self.learningRate = learningRate
-        self.activationFunction = activationFunction
+        self.activationFunctions = activationFunctions
+        self.lossFunction = lossFunction
         
-        self.weightsInputHidden = (0..<inputSize).map { _ in (0..<hiddenSize).map { _ in Float.random(in: -1...1) } }
-        self.weightsHiddenOutput = (0..<hiddenSize).map { _ in (0..<outputSize).map { _ in Float.random(in: -1...1) } }
+        // Create a weight matrix fo    r each layer
+        weights = []
+        biases = []
+        
+        for layerIndex in 1..<layers.count {
+            let previousLayerSize = layers[layerIndex - 1]
+            let layerSize = layers[layerIndex]
+            
+            let weightMatrix = MLMatrix<Float>.init(randomFilledRows: layerSize, columns: previousLayerSize)
+            
+            weights.append(weightMatrix)
+            
+            let biasVector = MLVector<Float>.init(repeating: 0.0, count: layers[layerIndex])
+            biases.append(biasVector)
+        }
     }
+    
     
     func forward(input: MLVector<Float>) -> MLVector<Float> {
-        let hiddenInput = dot(input, weightsInputHidden)
-        let hiddenOutput = hiddenInput.map { activationFunction.apply($0) }
+        var activation = input
         
-        let finalInput = dot(hiddenOutput, weightsHiddenOutput)
-        let finalOutput = finalInput.map { activationFunction.apply($0) }
-        
-        return finalOutput
+        for (index, weightMatrix) in weights.enumerated() {
+            // Calculate the weighted sum (z) for this layer
+            var z: MLVector<Float> = (weightMatrix * activation).adding(biases[index])
+            // Apply the activation function to each element in the weighted sum
+            activation = MLVector( z.map { activationFunctions[index].apply($0) })
+        }
+        return activation
     }
-    
-    
     func train(input: MLVector<Float>, target: MLVector<Float>) {
-          // Forward pass
-          let hiddenInput = dot(input, weightsInputHidden)
-          let hiddenOutput = hiddenInput.map { activationFunction.apply($0) }
-          
-          let finalInput = dot(hiddenOutput, weightsHiddenOutput)
-          let finalOutput = finalInput.map { activationFunction.apply($0) }
-          
-          // Backward pass
-          let outputErrors = zip(target, finalOutput).map(-)
-          let hiddenErrors = dot(outputErrors, transpose(MLMatrix: weightsHiddenOutput))
-          
-          // Update weights
-          for i in 0..<hiddenSize {
-              for j in 0..<outputSize {
-                  let delta = learningRate * outputErrors[j] * activationFunction.derivative(finalOutput[j])
-                  weightsHiddenOutput[i][j] += delta * hiddenOutput[i]
-              }
-          }
-          
-          for i in 0..<inputSize {
-              for j in 0..<hiddenSize {
-                  let delta = learningRate * hiddenErrors[j] * activationFunction.derivative(hiddenOutput[j])
-                  weightsInputHidden[i][j] += delta * input[i]
-              }
-          }
-      }
-    
-    func transpose(MLMatrix: MLMatrix<Float>) -> MLMatrix<Float> {
-        guard let firstRow = MLMatrix.first else { return [] }
-        return firstRow.indices.map { idx in
-            MLMatrix.map { $0[idx] }
+        // Forward pass
+        var activations = [input]
+        var zs = [MLVector<Float>]()
+        
+        for (index, weightMatrix) in weights.enumerated() {
+            let z = weightMatrix * activations.last! + biases[index]
+            zs.append(z)
+            activations.append(MLVector(z.map { activationFunctions[index].apply($0) }))
+        }
+        
+        // Compute the error in the output layer
+        let outputError = lossFunction.gradient(target: target, output: activations.last!)
+        
+        // Backward pass
+        var delta = outputError
+        var nabla_w = [MLMatrix<Float>]()
+        var nabla_b = [MLVector<Float>]()
+        
+        for layer in (1..<layers.count).reversed() {
+            let z = zs[layer-1]
+            let sp = MLVector(z.map { activationFunctions[layer-1].derivative($0) })
+            delta = (delta * sp)
+            nabla_b.insert(delta, at: 0)
+            nabla_w.insert(delta.outerProduct(activations[layer-1]), at: 0)
+            delta = weights[layer-1].transpose() * delta
+        }
+        
+        // Update weights and biases using gradient descent
+        for i in 0..<weights.count {
+            weights[i] = weights[i] - nabla_w[i].scaled(by: learningRate)
+            biases[i] = biases[i] - nabla_b[i].scaled(by: learningRate)
         }
     }
     
-    func dot(_ vec: MLVector<Float>, _ MLMatrix: MLMatrix<Float>) -> MLVector<Float> {
-        return MLMatrix.indices.map { j in
-            vec.indices.reduce(0) { sum, i in
-                sum + vec[i] * MLMatrix[i][j]
-            }
-        }
+    func predict(input: MLVector<Float>) -> MLVector<Float> {
+        return forward(input: input)
+    }
+    
+    func getWeights() -> [MLMatrix<Float>] {
+        return weights
     }
 }
